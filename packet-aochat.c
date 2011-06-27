@@ -8,11 +8,11 @@
 #define AO_PORT_RK1 7101
 #define AO_PORT_RK2 7102
 
-#define AO_INT 0
-#define AO_STR 1
-#define AO_CHANNEL_ID 2
-#define AO_INT_TUPLE 3
-#define AO_STR_TUPLE 4
+#define AO_TYPE_INT 0
+#define AO_TYPE_STR 1
+#define AO_TYPE_CHANNEL_ID 2
+#define AO_TYPE_INT_TUPLE 3
+#define AO_TYPE_STR_TUPLE 4
 
 #define AO_PACKET_SEED 0
 #define AO_PACKET_AUTH 2
@@ -94,38 +94,38 @@ static const value_string packet_types[] = {
 };
 
 static void tree_add_item(gint type, gint *offset, proto_tree *tree, tvbuff_t *tvb) {
-    gint len = 0;
+    guint16 len = 0;
     
-    gint tuple_type = 0;
+    char tuple_type = 0;
     
     proto_item *tuple_item = NULL;
     proto_tree *tuple_tree = NULL;
     
     switch (type) {
-        case AO_INT:
+        case AO_TYPE_INT:
             proto_tree_add_item(tree, hf_aochat_data_int, tvb, *offset, 4, FALSE); *offset += 4;
             break;
         
-        case AO_STR:
+        case AO_TYPE_STR:
             len = tvb_get_ntohs(tvb, *offset); *offset += 2;
             proto_tree_add_item(tree, hf_aochat_data_str, tvb, *offset, len, FALSE); *offset += len;
             break;
         
-        case AO_CHANNEL_ID:
+        case AO_TYPE_CHANNEL_ID:
             proto_tree_add_item(tree, hf_aochat_data_channel_id, tvb, *offset, 5, FALSE); *offset += 5;
             break;
         
-        case AO_INT_TUPLE:
-        case AO_STR_TUPLE:
+        case AO_TYPE_INT_TUPLE:
+        case AO_TYPE_STR_TUPLE:
             len = tvb_get_ntohs(tvb, *offset);
             
             tuple_item = proto_tree_add_item(tree, hf_aochat_data_tuple, tvb, *offset, 2 + len * 2, FALSE); *offset += 2;
             tuple_tree = proto_item_add_subtree(tuple_item, ett_aochat_data_tuple);
             
-            if (type == AO_INT_TUPLE) {
-                tuple_type = AO_INT;
-            } else if (type == AO_STR_TUPLE) {
-                tuple_type = AO_STR;
+            if (type == AO_TYPE_INT_TUPLE) {
+                tuple_type = AO_TYPE_INT;
+            } else if (type == AO_TYPE_STR_TUPLE) {
+                tuple_type = AO_TYPE_STR;
             }
             
             while (len--) {
@@ -140,7 +140,7 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "AO Chat");
     
     if (tree) {
-        guint offset = 0;
+        guint16 offset = 0;
         
         while (offset < tvb_reported_length(tvb)) {
             guint16 packet_type   = tvb_get_ntohs(tvb, offset);
@@ -188,26 +188,26 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
                         
                         // From client
                         if (len1 >= 0 && len2 >= 0 && packet_length == 12 + len1 + len2) {
-                            tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         // From server
                         } else {
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         }
                         
                         break;
                     
                     case AO_PACKET_AUTH:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_LOGIN:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
@@ -215,26 +215,26 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
                         break;
                     
                     case AO_PACKET_ERROR:
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_CHARACTERS_LIST:
-                        tree_add_item(AO_INT_TUPLE, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR_TUPLE, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_INT_TUPLE, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_INT_TUPLE, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT_TUPLE, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR_TUPLE, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT_TUPLE, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT_TUPLE, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_CHARACTER_UNKNOWN:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_CHARACTER_UPDATE:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
@@ -247,45 +247,45 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
                         
                         // From server
                         if (len1 >= 0 && packet_length == 6 + len1) {
-                            tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         } else {
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         }
                         
                         break;
                     
                     case AO_PACKET_PRIVATE_MESSAGE:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_VICINITY_MESSAGE:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_BROADCAST_MESSAGE:
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_SYSTEM_MESSAGE:
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_CHAT_NOTICE:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
@@ -298,37 +298,37 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
                         
                         // From server
                         if (len1 >= 0 && packet_length == 10 + len1) {
-                            tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         // From client
                         } else {
-                            tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         }
                         
                         break;
                     
                     case AO_PACKET_FRIEND_REMOVE:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_PRIVATE_CHANNEL_INVITE:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         break;
                     case AO_PACKET_PRIVATE_CHANNEL_KICK:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_PRIVATE_CHANNEL_JOIN:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_PRIVATE_CHANNEL_LEAVE:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
@@ -336,14 +336,14 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
                         break;
                     
                     case AO_PACKET_PRIVATE_CHANNEL_CHARACTER_JOIN:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_PRIVATE_CHANNEL_CHARACTER_LEAVE:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
@@ -362,35 +362,35 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
                         
                         // From server
                         if (len1 >= 0 && len2 >= 0 && packet_length == 12 + len1 + len2) {
-                            tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         // From client
                         } else {
-                            tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         }
                         
                         break;
                     
                     case AO_PACKET_PRIVATE_CHANNEL_INVITE_REFUSE:
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_CHANNEL_JOIN:
-                        tree_add_item(AO_CHANNEL_ID, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_CHANNEL_ID, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_CHANNEL_LEAVE:
-                        tree_add_item(AO_CHANNEL_ID, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_CHANNEL_ID, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
@@ -409,27 +409,27 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
                         
                         // From server
                         if (len1 >= 0 && len2 >= 0 && packet_length == 13 + len1 + len2) {
-                            tree_add_item(AO_CHANNEL_ID, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_CHANNEL_ID, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         // From client
                         } else {
-                            tree_add_item(AO_CHANNEL_ID, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_CHANNEL_ID, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         }
                         
                         break;
                     
                     case AO_PACKET_PING:
-                        tree_add_item(AO_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_CHAT_COMMAND:
-                        tree_add_item(AO_STR_TUPLE, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_INT, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_STR_TUPLE, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         
                         break;
                     

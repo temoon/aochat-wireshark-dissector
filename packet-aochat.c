@@ -8,11 +8,12 @@
 #define AO_PORT_RK1 7101
 #define AO_PORT_RK2 7102
 
-#define AO_TYPE_INT 0
-#define AO_TYPE_STR 1
-#define AO_TYPE_CHANNEL_ID 2
-#define AO_TYPE_INT_TUPLE 3
-#define AO_TYPE_STR_TUPLE 4
+#define AO_TYPE_BYTE 0
+#define AO_TYPE_INT 1
+#define AO_TYPE_STR 2
+#define AO_TYPE_CHANNEL_ID 3
+#define AO_TYPE_INT_TUPLE 4
+#define AO_TYPE_STR_TUPLE 5
 
 #define AO_PACKET_SEED 0
 #define AO_PACKET_AUTH 2
@@ -55,6 +56,7 @@ static int hf_aochat_head_type = -1;
 static int hf_aochat_head_length = -1;
 static int hf_aochat_data = -1;
 static int hf_aochat_data_unknown = -1;
+static int hf_aochat_data_byte = -1;
 static int hf_aochat_data_int = -1;
 static int hf_aochat_data_str= -1;
 static int hf_aochat_data_channel_id = -1;
@@ -102,6 +104,11 @@ static void tree_add_item(gint type, gint *offset, proto_tree *tree, tvbuff_t *t
     proto_tree *tuple_tree = NULL;
     
     switch (type) {
+        case AO_TYPE_BYTE:
+            len = tvb_get_ntohs(tvb, *offset); *offset += 2;
+            proto_tree_add_item(tree, hf_aochat_data_byte, tvb, *offset, len, FALSE); *offset += len;
+            break;
+        
         case AO_TYPE_INT:
             proto_tree_add_item(tree, hf_aochat_data_int, tvb, *offset, 4, FALSE); *offset += 4;
             break;
@@ -140,7 +147,7 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "AO Chat");
     
     if (tree) {
-        guint16 offset = 0;
+        guint offset = 0;
         
         while (offset < tvb_reported_length(tvb)) {
             guint16 packet_type   = tvb_get_ntohs(tvb, offset);
@@ -258,14 +265,14 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
                     case AO_PACKET_PRIVATE_MESSAGE:
                         tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_BYTE, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
                     case AO_PACKET_VICINITY_MESSAGE:
                         tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                         tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                        tree_add_item(AO_TYPE_BYTE, &offset, aochat_data_tree, tvb);
                         
                         break;
                     
@@ -300,11 +307,11 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
                         if (len1 >= 0 && packet_length == 10 + len1) {
                             tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
                             tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_BYTE, &offset, aochat_data_tree, tvb);
                         // From client
                         } else {
                             tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
+                            tree_add_item(AO_TYPE_BYTE, &offset, aochat_data_tree, tvb);
                         }
                         
                         break;
@@ -447,6 +454,7 @@ void proto_register_aochat(void) {
         { &hf_aochat_head_length,     { "Length",     "aochat.length",          FT_UINT16, BASE_DEC,  NULL,               0x0, NULL, HFILL } },
         { &hf_aochat_data,            { "Data",       "aochat.data",            FT_BYTES,  BASE_NONE, NULL,               0x0, NULL, HFILL } },
         { &hf_aochat_data_unknown,    { "Unknown",    "aochat.data.unknown",    FT_BYTES,  BASE_NONE, NULL,               0x0, NULL, HFILL } },
+        { &hf_aochat_data_byte,       { "Byte",       "aochat.data.byte",       FT_UINT8,  BASE_DEC,  NULL,               0x0, NULL, HFILL } },
         { &hf_aochat_data_int,        { "Integer",    "aochat.data.int",        FT_UINT32, BASE_DEC,  NULL,               0x0, NULL, HFILL } },
         { &hf_aochat_data_str,        { "String",     "aochat.data.string",     FT_STRING, BASE_NONE, NULL,               0x0, NULL, HFILL } },
         { &hf_aochat_data_channel_id, { "Channel ID", "aochat.data.channel_id", FT_UINT64, BASE_DEC,  NULL,               0x0, NULL, HFILL } },

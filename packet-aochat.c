@@ -2,18 +2,20 @@
 # include "config.h"
 #endif
 
+
 #include <epan/packet.h>
+
 
 #define AO_PORT_TEST 7109
 #define AO_PORT_RK1 7101
 #define AO_PORT_RK2 7102
 
-#define AO_TYPE_BYTE 0
-#define AO_TYPE_INT 1
-#define AO_TYPE_STR 2
-#define AO_TYPE_CHANNEL_ID 3
-#define AO_TYPE_INT_TUPLE 4
-#define AO_TYPE_STR_TUPLE 5
+#define AO_TYPE_BYTE 1
+#define AO_TYPE_INT 2
+#define AO_TYPE_STR 3
+#define AO_TYPE_CHANNEL_ID 4
+#define AO_TYPE_INT_TUPLE 5
+#define AO_TYPE_STR_TUPLE 6
 
 #define AO_PACKET_SEED 0
 #define AO_PACKET_AUTH 2
@@ -46,6 +48,7 @@
 #define AO_PACKET_PING 100
 #define AO_PACKET_CHAT_COMMAND 120
 
+
 static int proto_aochat = -1;
 
 static gint ett_aochat = -1;
@@ -61,6 +64,14 @@ static int hf_aochat_data_int = -1;
 static int hf_aochat_data_str= -1;
 static int hf_aochat_data_channel_id = -1;
 static int hf_aochat_data_tuple = -1;
+
+
+typedef struct packet {
+    const guint16 type;
+    const char server_types[4];
+    const char client_types[4];
+} packet_t;
+
 
 static const value_string packet_types[] = {
     { AO_PACKET_SEED, "Seed" },
@@ -95,7 +106,191 @@ static const value_string packet_types[] = {
     { AO_PACKET_CHAT_COMMAND, "Chat Command" }
 };
 
-static void tree_add_item(gint type, gint *offset, proto_tree *tree, tvbuff_t *tvb) {
+
+static const packet_t packets[] = {
+    {
+        AO_PACKET_SEED,
+        { AO_TYPE_STR },
+        { AO_TYPE_INT, AO_TYPE_INT, AO_TYPE_STR, AO_TYPE_STR },
+    },
+    
+    {
+        AO_PACKET_AUTH,
+        { AO_TYPE_INT, AO_TYPE_STR, AO_TYPE_STR },
+        { AO_TYPE_INT, AO_TYPE_STR, AO_TYPE_STR },
+    },
+    
+    {
+        AO_PACKET_LOGIN,
+        { AO_TYPE_INT },
+        { AO_TYPE_INT },
+    },
+    
+    {
+        AO_PACKET_OK,
+        { },
+        { },
+    },
+    
+    {
+        AO_PACKET_ERROR,
+        { AO_TYPE_STR },
+        { AO_TYPE_STR },
+    },
+    
+    {
+        AO_PACKET_CHARACTERS_LIST,
+        { AO_TYPE_INT_TUPLE, AO_TYPE_STR_TUPLE, AO_TYPE_INT_TUPLE, AO_TYPE_INT_TUPLE },
+        { AO_TYPE_INT_TUPLE, AO_TYPE_STR_TUPLE, AO_TYPE_INT_TUPLE, AO_TYPE_INT_TUPLE },
+    },
+    
+    {
+        AO_PACKET_CHARACTER_UNKNOWN,
+        { AO_TYPE_INT },
+        { AO_TYPE_INT },
+    },
+    
+    {
+        AO_PACKET_CHARACTER_UPDATE,
+        { AO_TYPE_INT, AO_TYPE_STR },
+        { AO_TYPE_INT, AO_TYPE_STR },
+    },
+    
+    {
+        AO_PACKET_CHARACTER_LOOKUP,
+        { AO_TYPE_INT, AO_TYPE_STR },
+        { AO_TYPE_STR },
+    },
+    
+    {
+        AO_PACKET_PRIVATE_MESSAGE,
+        { AO_TYPE_INT, AO_TYPE_STR, AO_TYPE_BYTE },
+        { AO_TYPE_INT, AO_TYPE_STR, AO_TYPE_BYTE },
+    },
+    
+    {
+        AO_PACKET_VICINITY_MESSAGE,
+        { AO_TYPE_INT, AO_TYPE_STR, AO_TYPE_BYTE },
+        { AO_TYPE_INT, AO_TYPE_STR, AO_TYPE_BYTE },
+    },
+    
+    {
+        AO_PACKET_BROADCAST_MESSAGE,
+        { AO_TYPE_STR, AO_TYPE_STR, AO_TYPE_STR },
+        { AO_TYPE_STR, AO_TYPE_STR, AO_TYPE_STR },
+    },
+    
+    {
+        AO_PACKET_SYSTEM_MESSAGE,
+        { AO_TYPE_STR },
+        { AO_TYPE_STR },
+    },
+    
+    {
+        AO_PACKET_CHAT_NOTICE,
+        { AO_TYPE_INT, AO_TYPE_INT, AO_TYPE_INT, AO_TYPE_STR },
+        { AO_TYPE_INT, AO_TYPE_INT, AO_TYPE_INT, AO_TYPE_STR },
+    },
+    
+    {
+        AO_PACKET_FRIEND_UPDATE,
+        { AO_TYPE_INT, AO_TYPE_INT, AO_TYPE_BYTE },
+        { AO_TYPE_INT, AO_TYPE_BYTE },
+    },
+    
+    {
+        AO_PACKET_FRIEND_REMOVE,
+        { AO_TYPE_INT },
+        { AO_TYPE_INT },
+    },
+    
+    {
+        AO_PACKET_PRIVATE_CHANNEL_INVITE,
+        { AO_TYPE_INT },
+        { AO_TYPE_INT },
+    },
+    
+    {
+        AO_PACKET_PRIVATE_CHANNEL_KICK,
+        { AO_TYPE_INT },
+        { AO_TYPE_INT },
+    },
+    
+    {
+        AO_PACKET_PRIVATE_CHANNEL_JOIN,
+        { AO_TYPE_INT },
+        { AO_TYPE_INT },
+    },
+    
+    {
+        AO_PACKET_PRIVATE_CHANNEL_LEAVE,
+        { AO_TYPE_INT },
+        { AO_TYPE_INT },
+    },
+    
+    {
+        AO_PACKET_PRIVATE_CHANNEL_KICK_ALL,
+        { },
+        { },
+    },
+    
+    {
+        AO_PACKET_PRIVATE_CHANNEL_CHARACTER_JOIN,
+        { AO_TYPE_INT, AO_TYPE_INT },
+        { AO_TYPE_INT, AO_TYPE_INT },
+    },
+    
+    {
+        AO_PACKET_PRIVATE_CHANNEL_CHARACTER_LEAVE,
+        { AO_TYPE_INT, AO_TYPE_INT },
+        { AO_TYPE_INT, AO_TYPE_INT },
+    },
+    
+    {
+        AO_PACKET_PRIVATE_CHANNEL_MESSAGE,
+        { AO_TYPE_INT, AO_TYPE_INT, AO_TYPE_STR, AO_TYPE_STR },
+        { AO_TYPE_INT, AO_TYPE_STR, AO_TYPE_STR },
+    },
+    
+    {
+        AO_PACKET_PRIVATE_CHANNEL_INVITE_REFUSE,
+        { AO_TYPE_INT },
+        { AO_TYPE_INT },
+    },
+    
+    {
+        AO_PACKET_CHANNEL_JOIN,
+        { AO_TYPE_CHANNEL_ID, AO_TYPE_STR, AO_TYPE_INT, AO_TYPE_STR },
+        { AO_TYPE_CHANNEL_ID, AO_TYPE_STR, AO_TYPE_INT, AO_TYPE_STR },
+    },
+    
+    {
+        AO_PACKET_CHANNEL_LEAVE,
+        { AO_TYPE_CHANNEL_ID },
+        { AO_TYPE_CHANNEL_ID },
+    },
+    
+    {
+        AO_PACKET_CHANNEL_MESSAGE,
+        { AO_TYPE_CHANNEL_ID, AO_TYPE_INT, AO_TYPE_STR, AO_TYPE_STR },
+        { AO_TYPE_CHANNEL_ID, AO_TYPE_STR, AO_TYPE_STR },
+    },
+    
+    {
+        AO_PACKET_PING,
+        { AO_TYPE_BYTE },
+        { AO_TYPE_BYTE },
+    },
+    
+    {
+        AO_PACKET_CHAT_COMMAND,
+        { AO_TYPE_STR_TUPLE, AO_TYPE_INT },
+        { AO_TYPE_STR_TUPLE, AO_TYPE_INT },
+    },
+};
+
+
+static void tree_add_item(char type, guint *offset, proto_tree *tree, tvbuff_t *tvb) {
     guint16 len = 0;
     
     char tuple_type = 0;
@@ -143,6 +338,120 @@ static void tree_add_item(gint type, gint *offset, proto_tree *tree, tvbuff_t *t
     }
 }
 
+
+char check_direction(guint16 packet_length, const char *types, guint *offset, tvbuff_t *tvb) {
+    guint16 len = 0;
+    
+    unsigned char i = 0;
+    
+    for (i = 0; i < sizeof(types) / sizeof(char); i++) {
+        switch (types[i]) {
+            case AO_TYPE_BYTE:
+            case AO_TYPE_STR:
+                if (packet_length >= len + 2) {
+                    len += 2 + tvb_get_ntohs(tvb, *offset + len);
+                    
+                    if (packet_length < len) {
+                        return 0;
+                    }
+                } else {
+                    return 0;
+                }
+                
+                break;
+            
+            case AO_TYPE_INT:
+                if (packet_length >= len + 4) {
+                    len += 4;
+                } else {
+                    return 0;
+                }
+                
+                break;
+            
+            case AO_TYPE_CHANNEL_ID:
+                if (packet_length >= len + 5) {
+                    len += 5;
+                } else {
+                    return 0;
+                }
+                
+                break;
+            
+            case AO_TYPE_INT_TUPLE:
+                if (packet_length >= len + 2) {
+                    len += 2 + tvb_get_ntohs(tvb, *offset + len) * 4;
+                    
+                    if (packet_length < len) {
+                        return 0;
+                    }
+                } else {
+                    return 0;
+                }
+                
+                break;
+            
+            case AO_TYPE_STR_TUPLE:
+                if (packet_length >= len + 2) {
+                    guint16 count = tvb_get_ntohs(tvb, *offset + len);
+                    len += 2;
+                    
+                    while (count--) {
+                        if (packet_length >= len + 2) {
+                            len += 2 + tvb_get_ntohs(tvb, *offset + len);
+                            
+                            if (packet_length < len) {
+                                return 0;
+                            }
+                        } else {
+                            return 0;
+                        }
+                    }
+                    
+                    if (packet_length < len) {
+                        return 0;
+                    }
+                } else {
+                    return 0;
+                }
+                
+                break;
+        }
+    }
+    
+    return (len == packet_length) ? 1 : 0;
+}
+
+
+char tree_make(guint16 packet_type, guint16 packet_length, guint *offset, proto_tree *tree, tvbuff_t *tvb) {
+    const packet_t *p = NULL;
+    const char *types = NULL;
+    
+    unsigned char i = 0;
+    
+    for (i = 0; i < sizeof(packets) / sizeof(packet_t); i++) {
+        if (packets[i].type == packet_type) {
+            p = &packets[i];
+            break;
+        }
+    }
+    
+    if (p != NULL && check_direction(packet_length, p->server_types, offset, tvb)) {
+        types = p->server_types;
+    } else if ( p != NULL && check_direction(packet_length, p->client_types, offset, tvb)) {
+        types = p->client_types;
+    } else {
+        return 0;
+    }
+    
+    for (i = 0; i < sizeof(types) / sizeof(char); i++) {
+        tree_add_item(types[i], offset, tree, tvb);
+    }
+    
+    return 1;
+}
+
+
 static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "AO Chat");
     
@@ -173,280 +482,17 @@ static void dissect_aochat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) 
             proto_tree_add_item(aochat_tree, hf_aochat_head_length, tvb, offset, 2, FALSE); offset += 2;
             
             if (packet_length) {
-                gint16 len1 = -1;
-                gint16 len2 = -1;
-                
                 aochat_data_item = proto_tree_add_item(aochat_tree, hf_aochat_data, tvb, offset, packet_length, FALSE);
                 aochat_data_tree = proto_item_add_subtree(aochat_data_item, ett_aochat_data);
                 
-                switch (packet_type) {
-                    case AO_PACKET_SEED:
-                        if (packet_length >= 10) {
-                            len1 = tvb_get_ntohs(tvb, offset + 8);
-                        } else {
-                            len1 = -1;
-                        }
-                        
-                        if (len1 >= 0 && packet_length >= 12 + len1) {
-                            len2 = tvb_get_ntohs(tvb, offset + 10 + len1);
-                        } else {
-                            len2 = -1;
-                        }
-                        
-                        // From client
-                        if (len1 >= 0 && len2 >= 0 && packet_length == 12 + len1 + len2) {
-                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        // From server
-                        } else {
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        }
-                        
-                        break;
-                    
-                    case AO_PACKET_AUTH:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_LOGIN:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_OK:
-                        break;
-                    
-                    case AO_PACKET_ERROR:
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_CHARACTERS_LIST:
-                        tree_add_item(AO_TYPE_INT_TUPLE, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR_TUPLE, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_INT_TUPLE, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_INT_TUPLE, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_CHARACTER_UNKNOWN:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_CHARACTER_UPDATE:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_CHARACTER_LOOKUP:
-                        if (packet_length >= 6) {
-                            len1 = tvb_get_ntohs(tvb, offset + 4);
-                        } else {
-                            len1 = -1;
-                        }
-                        
-                        // From server
-                        if (len1 >= 0 && packet_length == 6 + len1) {
-                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        } else {
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        }
-                        
-                        break;
-                    
-                    case AO_PACKET_PRIVATE_MESSAGE:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_BYTE, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_VICINITY_MESSAGE:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_BYTE, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_BROADCAST_MESSAGE:
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_SYSTEM_MESSAGE:
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_CHAT_NOTICE:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_FRIEND_UPDATE:
-                        if (packet_length >= 10) {
-                            len1 = tvb_get_ntohs(tvb, offset + 8);
-                        } else {
-                            len1 = -1;
-                        }
-                        
-                        // From server
-                        if (len1 >= 0 && packet_length == 10 + len1) {
-                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_BYTE, &offset, aochat_data_tree, tvb);
-                        // From client
-                        } else {
-                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_BYTE, &offset, aochat_data_tree, tvb);
-                        }
-                        
-                        break;
-                    
-                    case AO_PACKET_FRIEND_REMOVE:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_PRIVATE_CHANNEL_INVITE:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        break;
-                    case AO_PACKET_PRIVATE_CHANNEL_KICK:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_PRIVATE_CHANNEL_JOIN:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_PRIVATE_CHANNEL_LEAVE:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_PRIVATE_CHANNEL_KICK_ALL:
-                        break;
-                    
-                    case AO_PACKET_PRIVATE_CHANNEL_CHARACTER_JOIN:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_PRIVATE_CHANNEL_CHARACTER_LEAVE:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_PRIVATE_CHANNEL_MESSAGE:
-                        if (packet_length >= 10) {
-                            len1 = tvb_get_ntohs(tvb, offset + 8);
-                        } else {
-                            len1 = -1;
-                        }
-                        
-                        if (len1 >= 0 && packet_length >= 12 + len1) {
-                            len2 = tvb_get_ntohs(tvb, offset + 10 + len1);
-                        } else {
-                            len2 = -1;
-                        }
-                        
-                        // From server
-                        if (len1 >= 0 && len2 >= 0 && packet_length == 12 + len1 + len2) {
-                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        // From client
-                        } else {
-                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        }
-                        
-                        break;
-                    
-                    case AO_PACKET_PRIVATE_CHANNEL_INVITE_REFUSE:
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_CHANNEL_JOIN:
-                        tree_add_item(AO_TYPE_CHANNEL_ID, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_CHANNEL_LEAVE:
-                        tree_add_item(AO_TYPE_CHANNEL_ID, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_CHANNEL_MESSAGE:
-                        if (packet_length >= 11) {
-                            len1 = tvb_get_ntohs(tvb, offset + 9);
-                        } else {
-                            len1 = -1;
-                        }
-                        
-                        if (len1 >= 0 && packet_length >= 13 + len1) {
-                            len2 = tvb_get_ntohs(tvb, offset + 11 + len1);
-                        } else {
-                            len2 = -1;
-                        }
-                        
-                        // From server
-                        if (len1 >= 0 && len2 >= 0 && packet_length == 13 + len1 + len2) {
-                            tree_add_item(AO_TYPE_CHANNEL_ID, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        // From client
-                        } else {
-                            tree_add_item(AO_TYPE_CHANNEL_ID, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                            tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        }
-                        
-                        break;
-                    
-                    case AO_PACKET_PING:
-                        tree_add_item(AO_TYPE_STR, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    case AO_PACKET_CHAT_COMMAND:
-                        tree_add_item(AO_TYPE_STR_TUPLE, &offset, aochat_data_tree, tvb);
-                        tree_add_item(AO_TYPE_INT, &offset, aochat_data_tree, tvb);
-                        
-                        break;
-                    
-                    default:
-                        proto_tree_add_item(aochat_data_tree, hf_aochat_data_unknown, tvb, offset, packet_length, FALSE); offset += packet_length;
+                if (!tree_make(packet_type, packet_length, &offset, aochat_data_tree, tvb)) {
+                    proto_tree_add_item(aochat_data_tree, hf_aochat_data_unknown, tvb, offset, packet_length, FALSE); offset += packet_length;
                 }
             }
         }
     }
 }
+
 
 void proto_register_aochat(void) {
     static hf_register_info hf[] = {
@@ -476,6 +522,7 @@ void proto_register_aochat(void) {
     proto_register_field_array(proto_aochat, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
 }
+
 
 void proto_reg_handoff_aochat(void) {
     static dissector_handle_t aochat_handle;
